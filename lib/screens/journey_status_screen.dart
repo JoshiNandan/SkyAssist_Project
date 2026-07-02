@@ -112,6 +112,14 @@ class JourneyStatusScreen extends StatelessWidget {
                           ),
                         ),
                         onPressed: () {
+                          if (!(booking.eligibleActions.contains('REBOOK'))) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('You are not eligible for rebooking on this booking.'),
+                              ),
+                            );
+                            return;
+                          }
                           provider.clearRecoveryFlow();
                           provider.setPendingAction("REBOOK");
                           Navigator.push(
@@ -150,6 +158,14 @@ class JourneyStatusScreen extends StatelessWidget {
                           ),
                         ),
                         onPressed: () {
+                          if (!(booking.eligibleActions.contains('REFUND'))) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('You are not eligible for a refund on this booking.'),
+                              ),
+                            );
+                            return;
+                          }
                           provider.clearRecoveryFlow();
                           provider.setPendingAction("REFUND");
                           Navigator.push(
@@ -183,6 +199,14 @@ class JourneyStatusScreen extends StatelessWidget {
                           ),
                         ),
                         onPressed: () {
+                          if (!(booking.eligibleActions.contains('SUPPORT'))) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('You are not eligible for support on this booking.'),
+                              ),
+                            );
+                            return;
+                          }
                           provider.clearRecoveryFlow();
                           provider.setPendingAction("SUPPORT");
                           Navigator.push(

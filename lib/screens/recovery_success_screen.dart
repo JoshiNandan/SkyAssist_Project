@@ -49,10 +49,20 @@ class RecoverySuccessScreen extends StatelessWidget {
     Map<String, dynamic>? result,
     String? action,
   ) {
+    final slip = provider.recoverySlip;
+    final requestId = slip?['requestId'] as String?;
+    final isRefund = action == 'REFUND';
+    final isSupport = action == 'SUPPORT';
+    final hasSlip = slip != null;
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Icon(Icons.check_circle, color: AppColors.success, size: 80),
+        Icon(
+          hasSlip ? Icons.check_circle_outline : Icons.check_circle,
+          color: AppColors.success,
+          size: 80,
+        ),
         const SizedBox(height: 24),
         Text(
           provider.successMessage ?? 'Request processed successfully!',
@@ -64,10 +74,89 @@ class RecoverySuccessScreen extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 32),
-        if (action == "REBOOK" &&
-            result != null &&
-            result.containsKey('selectedFlight'))
+
+        // Direct rebook: show selected flight card
+        if (action == 'REBOOK' && result != null && result.containsKey('selectedFlight'))
           _buildRebookedFlightCard(result['selectedFlight']),
+
+        // Refund / Support / Rebook: show request reference chip
+        if (hasSlip && requestId != null && requestId.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          _buildRequestReference(requestId),
+        ],
+
+        // Rebook: View Slip button
+        if (action == 'REBOOK' && hasSlip) ...[
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.receipt_long, size: 20),
+              label: const Text('View Rebook Slip', style: TextStyle(fontSize: 15)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.success,
+                side: const BorderSide(color: AppColors.success),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FareAdjustmentSlipScreen()),
+                );
+              },
+            ),
+          ),
+        ],
+
+        // Refund: View Slip button
+        if (isRefund && hasSlip) ...[
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.receipt_long, size: 20),
+              label: const Text('View Refund Slip', style: TextStyle(fontSize: 15)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.success,
+                side: const BorderSide(color: AppColors.success),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FareAdjustmentSlipScreen()),
+                );
+              },
+            ),
+          ),
+        ],
+
+        // Support: View Slip button
+        if (isSupport && hasSlip) ...[
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: OutlinedButton.icon(
+              icon: const Icon(Icons.receipt_long, size: 20),
+              label: const Text('View Support Slip', style: TextStyle(fontSize: 15)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const FareAdjustmentSlipScreen()),
+                );
+              },
+            ),
+          ),
+        ],
+
         const Spacer(),
         _buildBackToHomeButton(context, provider),
       ],

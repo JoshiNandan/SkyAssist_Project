@@ -7,6 +7,8 @@ import '../constants/api_constants.dart';
 import '../models/alternate_flight_model.dart';
 import '../models/booking_model.dart';
 
+class BookingNotFoundException implements Exception {}
+
 class ApiService {
   Future<BookingModel> lookupBooking(String pnr, String lastName) async {
     final uri = Uri.parse(
@@ -21,14 +23,13 @@ class ApiService {
 
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-
       final bookingJson = data['booking'] as Map<String, dynamic>?;
-
       if (bookingJson == null) {
         throw Exception('Booking data missing in API response');
       }
-
       return BookingModel.fromJson(bookingJson);
+    } else if (response.statusCode == 404) {
+      throw BookingNotFoundException();
     } else {
       throw Exception(
         'Failed to fetch booking (status ${response.statusCode})',

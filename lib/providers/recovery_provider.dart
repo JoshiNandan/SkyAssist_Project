@@ -35,6 +35,9 @@ class RecoveryProvider extends ChangeNotifier {
   int? newFare;
   Map<String, dynamic>? fareAdjustmentSlip;
 
+  // Refund / Support slip state
+  Map<String, dynamic>? recoverySlip;
+
   void setPendingAction(String action) {
     pendingAction = action;
     notifyListeners();
@@ -65,6 +68,7 @@ class RecoveryProvider extends ChangeNotifier {
     originalFare = null;
     newFare = null;
     fareAdjustmentSlip = null;
+    recoverySlip = null;
     notifyListeners();
   }
 
@@ -163,10 +167,17 @@ class RecoveryProvider extends ChangeNotifier {
       // Extract fare-adjustment details when present (rebook only)
       if (pendingAction == "REBOOK" &&
           recoveryStatus == 'PENDING_FARE_ADJUSTMENT') {
-        fareDifference = response['fareDifference'] as int?;
-        originalFare = response['originalFare'] as int?;
-        newFare = response['newFare'] as int?;
+        fareDifference = (response['fareDifference'] as num?)?.toInt();
+        originalFare = (response['originalFare'] as num?)?.toInt();
+        newFare = (response['newFare'] as num?)?.toInt();
         fareAdjustmentSlip = response['slip'] as Map<String, dynamic>?;
+      }
+
+      // Extract slip for direct rebook (equal/lower fare), refund, and support
+      if ((pendingAction == "REBOOK" && recoveryStatus == 'REBOOKED') ||
+          pendingAction == "REFUND" ||
+          pendingAction == "SUPPORT") {
+        recoverySlip = response['slip'] as Map<String, dynamic>?;
       }
       isLoading = false;
       notifyListeners();
@@ -198,8 +209,13 @@ class RecoveryProvider extends ChangeNotifier {
       isLoading = false;
       notifyListeners();
       return true;
+    } on BookingNotFoundException {
+      errorMessage = 'No booking found for the entered PNR and last name.';
+      isLoading = false;
+      notifyListeners();
+      return false;
     } catch (e) {
-      errorMessage = e.toString();
+      errorMessage = 'Something went wrong. Please try again.';
       isLoading = false;
       notifyListeners();
       return false;

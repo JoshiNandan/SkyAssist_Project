@@ -7,24 +7,22 @@ import '../models/booking_model.dart';
 import '../providers/recovery_provider.dart';
 import 'booking_lookup_screen.dart';
 
-class FareAdjustmentSlipScreen extends StatefulWidget {
+class FareAdjustmentSlipScreen extends StatelessWidget {
   const FareAdjustmentSlipScreen({super.key});
 
-  @override
-  State<FareAdjustmentSlipScreen> createState() =>
-      _FareAdjustmentSlipScreenState();
-}
-
-class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
-  @override
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<RecoveryProvider>();
     final booking = provider.currentBooking;
 
-    if (booking == null || provider.fareAdjustmentSlip == null) {
+    // Resolve the active slip — rebook uses fareAdjustmentSlip,
+    // refund/support use recoverySlip.
+    final slip = provider.fareAdjustmentSlip ?? provider.recoverySlip;
+    final slipType = (slip?['type'] as String? ?? provider.pendingAction ?? '').toUpperCase();
+
+    if (booking == null || slip == null) {
       return Scaffold(
-        appBar: _buildAppBar(),
+        appBar: _buildAppBar(slipType),
         backgroundColor: AppColors.background,
         body: const Center(
           child: Padding(
@@ -32,16 +30,9 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.warning_amber_rounded,
-                  size: 64,
-                  color: AppColors.warning,
-                ),
+                Icon(Icons.warning_amber_rounded, size: 64, color: AppColors.warning),
                 SizedBox(height: 20),
-                Text(
-                  'Fare adjustment details are not available.',
-                  textAlign: TextAlign.center,
-                ),
+                Text('Slip details are not available.', textAlign: TextAlign.center),
               ],
             ),
           ),
@@ -49,19 +40,22 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
       );
     }
 
-    final slip = provider.fareAdjustmentSlip!;
     final result = provider.recoveryResult;
-    final selectedFlight = result?['selectedFlight'] as Map<String, dynamic>?;
+    final selectedFlight = (result?['selectedFlight'] ?? slip['selectedFlight']) as Map<String, dynamic>?;
+    final isRebook = slipType == 'REBOOK' || slipType.contains('REBOOK');
+    final isRefund = slipType == 'REFUND';
+    final isSupport = slipType == 'SUPPORT';
+    final isFareAdj = isRebook && provider.fareAdjustmentSlip != null;
 
     return Scaffold(
-      appBar: _buildAppBar(),
+      appBar: _buildAppBar(slipType, isFareAdj: isFareAdj),
       backgroundColor: AppColors.background,
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildHeader(slip),
+            _buildHeader(slip, slipType, isFareAdj: isFareAdj),
             const SizedBox(height: 16),
 
             _buildSectionCard(
@@ -78,21 +72,47 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
             ),
             const SizedBox(height: 12),
 
-            _buildSectionCard(
-              icon: Icons.flight_takeoff,
-              title: 'Requested Alternate Flight',
-              child: selectedFlight != null
-                  ? _buildAlternateFlight(selectedFlight)
-                  : _buildUnavailable(),
-            ),
-            const SizedBox(height: 12),
+            // Rebook: show alternate flight section
+            if (isRebook) ...[
+              _buildSectionCard(
+                icon: Icons.flight_takeoff,
+                title: 'Requested Alternate Flight',
+                child: selectedFlight != null
+                    ? _buildAlternateFlight(selectedFlight)
+                    : _buildUnavailable(),
+              ),
+              const SizedBox(height: 12),
+            ],
 
-            _buildSectionCard(
-              icon: Icons.account_balance_wallet_outlined,
-              title: 'Fare Summary',
-              child: _buildFareSummary(provider),
-            ),
-            const SizedBox(height: 12),
+            // Rebook with fare diff: show fare summary
+            if (isRebook && provider.fareAdjustmentSlip != null) ...[
+              _buildSectionCard(
+                icon: Icons.account_balance_wallet_outlined,
+                title: 'Fare Summary',
+                child: _buildFareSummary(provider),
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            // Refund: show refund details section
+            if (isRefund) ...[
+              _buildSectionCard(
+                icon: Icons.account_balance_wallet_outlined,
+                title: 'Refund Details',
+                child: _buildRefundDetails(slip, booking),
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            // Support: show support details section
+            if (isSupport) ...[
+              _buildSectionCard(
+                icon: Icons.headset_mic_outlined,
+                title: 'Support Request Details',
+                child: _buildSupportDetails(slip, provider),
+              ),
+              const SizedBox(height: 12),
+            ],
 
             _buildSectionCard(
               icon: Icons.tag,
@@ -101,7 +121,7 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
             ),
             const SizedBox(height: 16),
 
-            _buildAirportNote(slip),
+            _buildNote(slip),
             const SizedBox(height: 24),
 
             SizedBox(
@@ -109,24 +129,17 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: () {
                   provider.clearRecoveryFlow();
                   Navigator.pushAndRemoveUntil(
                     context,
-                    MaterialPageRoute(
-                      builder: (_) => const BookingLookupScreen(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const BookingLookupScreen()),
                     (route) => false,
                   );
                 },
-                child: const Text(
-                  'Back to Home',
-                  style: TextStyle(color: Colors.white, fontSize: 16),
-                ),
+                child: const Text('Back to Home', style: TextStyle(color: Colors.white, fontSize: 16)),
               ),
             ),
             const SizedBox(height: 12),
@@ -136,31 +149,65 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
     );
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
-  AppBar _buildAppBar() {
+  // ── AppBar ──────────────────────────────────────────────────────────────────
+  AppBar _buildAppBar(String slipType, {bool isFareAdj = false}) {
+    final title = slipType == 'REFUND'
+        ? 'Refund Request Slip'
+        : slipType == 'SUPPORT'
+            ? 'Support Request Slip'
+            : isFareAdj
+                ? 'Fare Adjustment Slip'
+                : 'Rebook Confirmation Slip';
     return AppBar(
       backgroundColor: AppColors.primary,
-      title: const Text('Fare Adjustment Slip'),
+      title: Text(title),
       elevation: 0,
     );
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
-  Widget _buildHeader(Map<String, dynamic> slip) {
+  // ── Header banner ───────────────────────────────────────────────────────────
+  Widget _buildHeader(Map<String, dynamic> slip, String slipType, {bool isFareAdj = false}) {
+    final isRefund = slipType == 'REFUND';
+    final isSupport = slipType == 'SUPPORT';
+
+    final Color accentColor = isRefund
+        ? AppColors.success
+        : isSupport
+            ? AppColors.primary
+            : isFareAdj
+                ? AppColors.warning
+                : AppColors.success;
+
+    final IconData icon = isRefund
+        ? Icons.account_balance_wallet_outlined
+        : isSupport
+            ? Icons.headset_mic_outlined
+            : isFareAdj
+                ? Icons.receipt_long
+                : Icons.flight_takeoff;
+
+    final String title = isRefund
+        ? 'Refund Request Slip'
+        : isSupport
+            ? 'Support Request Slip'
+            : isFareAdj
+                ? 'Fare Adjustment Slip'
+                : 'Rebook Confirmation Slip';
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.warning.withValues(alpha: 0.09),
+        color: accentColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+        border: Border.all(color: accentColor.withValues(alpha: 0.28)),
       ),
       child: Column(
         children: [
-          const Icon(Icons.receipt_long, color: AppColors.warning, size: 40),
+          Icon(icon, color: accentColor, size: 40),
           const SizedBox(height: 12),
-          const Text(
-            'Fare Adjustment Slip',
-            style: TextStyle(
+          Text(
+            title,
+            style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
               color: AppColors.text,
@@ -170,8 +217,7 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            slip['instruction'] as String? ??
-                'Present this slip at the airport support desk for fare collection and final ticket reissue.',
+            slip['instruction'] as String? ?? '',
             style: TextStyle(
               fontSize: 13,
               color: AppColors.text.withValues(alpha: 0.65),
@@ -184,7 +230,7 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
     );
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
+  // ── Passenger details ───────────────────────────────────────────────────────
   Widget _buildPassengerDetails(BookingModel booking) {
     return Column(
       children: [
@@ -197,14 +243,10 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
     );
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
+  // ── Original journey ────────────────────────────────────────────────────────
   Widget _buildOriginalJourney(BookingModel booking) {
-    if (booking.segments.isEmpty) {
-      return _buildUnavailable();
-    }
-
+    if (booking.segments.isEmpty) return _buildUnavailable();
     final seg = booking.segments.first;
-
     return Column(
       children: [
         _dataRow('Flight', seg.flightNumber),
@@ -217,7 +259,7 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
     );
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
+  // ── Alternate flight (rebook only) ──────────────────────────────────────────
   Widget _buildAlternateFlight(Map<String, dynamic> flight) {
     final label = flight['label']?.toString() ?? '';
     return Column(
@@ -234,18 +276,12 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
     );
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
+  // ── Fare summary (rebook with fare diff only) ───────────────────────────────
   Widget _buildFareSummary(RecoveryProvider provider) {
     return Column(
       children: [
-        _dataRow(
-          'Original Fare',
-          provider.originalFare != null ? '₹${provider.originalFare}' : '—',
-        ),
-        _dataRow(
-          'New Flight Fare',
-          provider.newFare != null ? '₹${provider.newFare}' : '—',
-        ),
+        _dataRow('Original Fare', provider.originalFare != null ? '₹${provider.originalFare}' : '—'),
+        _dataRow('New Flight Fare', provider.newFare != null ? '₹${provider.newFare}' : '—'),
         const Divider(height: 20),
         _dataRow(
           'Additional Fare Required',
@@ -256,16 +292,36 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
     );
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
+  // ── Refund details ──────────────────────────────────────────────────────────
+  Widget _buildRefundDetails(Map<String, dynamic> slip, BookingModel booking) {
+    return Column(
+      children: [
+        _dataRow('Request Type', 'Refund'),
+        _dataRow('Status', slip['status']?.toString() ?? 'REQUESTED'),
+        _dataRow('Booking ID', slip['bookingId']?.toString() ?? booking.bookingId),
+      ],
+    );
+  }
+
+  // ── Support details ─────────────────────────────────────────────────────────
+  Widget _buildSupportDetails(Map<String, dynamic> slip, RecoveryProvider provider) {
+    return Column(
+      children: [
+        _dataRow('Request Type', 'Support'),
+        _dataRow('Status', slip['status']?.toString() ?? 'OPEN'),
+        if (provider.supportReason.isNotEmpty)
+          _dataRow('Reason', provider.supportReason),
+      ],
+    );
+  }
+
+  // ── Request reference ───────────────────────────────────────────────────────
   Widget _buildRequestReference(Map<String, dynamic> slip) {
     final requestId = slip['requestId']?.toString() ?? '—';
     final generatedAt = slip['generatedAt']?.toString() ?? '—';
-
-    // Light formatting: replace T with a space and trim trailing Z for readability
     final displayDate = generatedAt.contains('T')
         ? generatedAt.replaceFirst('T', '  ').replaceAll('Z', ' UTC').trim()
         : generatedAt;
-
     return Column(
       children: [
         _dataRow('Request ID', requestId),
@@ -274,14 +330,10 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
     );
   }
 
-  // ────────────────────────────────────────────────────────────────────────────
-  Widget _buildAirportNote(Map<String, dynamic> slip) {
-    final instruction =
-        slip['instruction'] as String? ??
-        'Please present this fare adjustment slip along with your booking '
-            'reference at the airport support desk. Additional fare, if applicable, '
-            'will be collected by airline staff before final ticket reissue.';
-
+  // ── Bottom note ─────────────────────────────────────────────────────────────
+  Widget _buildNote(Map<String, dynamic> slip) {
+    final instruction = slip['instruction'] as String? ??
+        'Please keep this reference for further communication.';
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -297,11 +349,7 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
           Expanded(
             child: Text(
               instruction,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppColors.text,
-                height: 1.6,
-              ),
+              style: const TextStyle(fontSize: 13, color: AppColors.text, height: 1.6),
             ),
           ),
         ],
@@ -309,7 +357,7 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
     );
   }
 
-  /// Wraps [child] in a bordered card with a left-accented section heading.
+  // ── Section card wrapper ────────────────────────────────────────────────────
   Widget _buildSectionCard({
     required IconData icon,
     required String title,
@@ -321,7 +369,6 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Section header strip
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
@@ -350,7 +397,6 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
               ],
             ),
           ),
-          // Section body
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
             child: child,
@@ -360,7 +406,7 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
     );
   }
 
-  /// Label → value row used inside section bodies.
+  // ── Data row ────────────────────────────────────────────────────────────────
   Widget _dataRow(String label, String value, {bool highlight = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5.0),
@@ -370,13 +416,10 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SizedBox(
-                width: constraints.maxWidth * 0.35,
+                width: constraints.maxWidth * 0.38,
                 child: Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.text.withValues(alpha: 0.6),
-                  ),
+                  style: TextStyle(fontSize: 13, color: AppColors.text.withValues(alpha: 0.6)),
                 ),
               ),
               const SizedBox(width: 8),
@@ -398,7 +441,7 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
     );
   }
 
-  /// Origin → destination visual row.
+  // ── Route row ───────────────────────────────────────────────────────────────
   Widget _routeRow(String origin, String destination) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -408,30 +451,18 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
           Flexible(
             child: Text(
               origin,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primary,
-              ),
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.primary),
               overflow: TextOverflow.ellipsis,
             ),
           ),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 10),
-            child: Icon(
-              Icons.arrow_forward,
-              size: 18,
-              color: AppColors.softSage,
-            ),
+            child: Icon(Icons.arrow_forward, size: 18, color: AppColors.softSage),
           ),
           Flexible(
             child: Text(
               destination,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primary,
-              ),
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.primary),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -443,11 +474,7 @@ class _FareAdjustmentSlipScreenState extends State<FareAdjustmentSlipScreen> {
   Widget _buildUnavailable() {
     return Text(
       'Details unavailable',
-      style: TextStyle(
-        fontSize: 13,
-        color: AppColors.text.withValues(alpha: 0.5),
-        fontStyle: FontStyle.italic,
-      ),
+      style: TextStyle(fontSize: 13, color: AppColors.text.withValues(alpha: 0.5), fontStyle: FontStyle.italic),
     );
   }
 }

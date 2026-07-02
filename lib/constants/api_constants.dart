@@ -1,6 +1,6 @@
 // lib/constants/api_constants.dart
 class ApiConstants {
-  static const String baseUrl = 'http://192.168.29.11:5000';
+  static const String baseUrl = 'https://skyassist-gwfb.onrender.com';
   static const String bookingLookup = '/api/bookings/lookup';
   static String alternateFlights(String bookingId) =>
       '/api/recovery/$bookingId/alternatives';

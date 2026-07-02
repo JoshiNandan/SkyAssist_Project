@@ -5,7 +5,7 @@ import "package:provider/provider.dart";
 import 'constants/app_colors.dart';
 import 'constants/app_strings.dart';
 import 'providers/recovery_provider.dart';
-import 'screens/booking_lookup_screen.dart';
+import 'screens/splash_screen.dart';
 
 void main() {
   runApp(const SkyAssistApp());
@@ -21,7 +21,7 @@ class SkyAssistApp extends StatelessWidget {
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: AppStrings.appTitle,
-        home: const BookingLookupScreen(),
+        home: const SplashScreen(),
         // Simple background colour – no ThemeData wrapper
         builder: (context, child) =>
             Container(color: AppColors.background, child: child),

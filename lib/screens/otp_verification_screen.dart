@@ -81,7 +81,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
             if (provider.maskedOtpDestination != null) ...[
               const SizedBox(height: 10),
               Text(
-                'Destination: ${provider.maskedOtpDestination}',
+                'OTP sent to ${provider.maskedOtpDestination}',
                 style: const TextStyle(fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
